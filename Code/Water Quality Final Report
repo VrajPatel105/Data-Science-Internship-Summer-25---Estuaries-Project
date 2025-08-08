@@ -1,0 +1,802 @@
+# Code for generating water quality data report
+
+Sub GenerateFinalWaterQualityReport()
+'
+' Enhanced Final Water Quality Report Generator - Formatting + Advanced Charts
+' Transforms Power Query cleaned data into publication-ready format with comprehensive analysis
+' Created for Coastal Systems Program - SMAST UMass Dartmouth
+'
+    On Error GoTo ErrorHandler
+    
+    If ActiveSheet Is Nothing Then
+        MsgBox "Please select a worksheet with Power Query transformed data.", vbExclamation
+        Exit Sub
+    End If
+    
+    Dim response As VbMsgBoxResult
+    response = MsgBox("This will format the Power Query cleaned data into final report format with enhanced visualizations." & vbCrLf & _
+                     "Continue?", vbYesNo + vbQuestion, "Generate Enhanced Final Report")
+    
+    If response = vbNo Then Exit Sub
+    
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    Dim wsRaw As Worksheet
+    Dim wsFormatted As Worksheet
+    Dim lastRow As Long
+    Dim lastCol As Long
+    Dim i As Long, j As Long
+    
+    ' Set source worksheet (Power Query output)
+    Set wsRaw = ActiveSheet
+    
+    ' Get data year from first date found
+    Dim dataYear As String
+    dataYear = Year(Now()) ' Default to current year
+    For i = 2 To 50
+        If IsDate(wsRaw.Cells(i, 4).Value) Then
+            dataYear = Year(wsRaw.Cells(i, 4).Value)
+            Exit For
+        End If
+    Next i
+    
+    ' Delete existing worksheet if it exists
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    Worksheets("Final_" & dataYear).Delete
+    Application.DisplayAlerts = True
+    On Error GoTo ErrorHandler
+    
+    ' Create new formatted worksheet
+    Set wsFormatted = Worksheets.Add
+    wsFormatted.Name = "Final_" & dataYear
+    
+    ' Clear the formatted sheet
+    wsFormatted.Cells.Clear
+    
+    ' ===== CREATE HEADER SECTION =====
+    With wsFormatted
+        .Range("A1").Value = "Coastal Systems Group"
+        .Range("A2").Value = "SMAST"
+        .Range("A3").Value = "Umass Dartmouth"
+        .Range("A4").Value = "706 Rodney French Blvd"
+        .Range("A5").Value = "New Bedford, Ma 02744"
+        .Range("A6").Value = "CITMON " & dataYear
+        .Range("A7").Value = "Generated: " & Format(Now(), "mm-dd-yyyy")
+        
+        ' Data Quality Keys
+        .Range("F3").Value = "Key"
+        .Range("F4").Value = "NA=Not Applicable"
+        .Range("F5").Value = "NES = Not Enough Sample"
+        .Range("F6").Value = "NS = No Sample"
+        .Range("F7").Value = "NC = No Chain Of Custody"
+        .Range("F8").Value = "ND = No Data, samples being processed"
+        .Range("F9").Value = "BDL = Below Detection Limit"
+        
+        ' Weather Conditions Legend
+        .Range("L3").Value = "Weather Conditions:"
+        .Range("L4").Value = "1 = Clear"
+        .Range("L5").Value = "2 = Partly Cloudy"
+        .Range("L6").Value = "3 = Overcast"
+        .Range("L7").Value = "4 = Rain"
+        .Range("L8").Value = "5 = Storm"
+        
+        ' Precipitation Legend
+        .Range("O3").Value = "24 hour Precipitation"
+        .Range("O4").Value = "1 = None"
+        .Range("O5").Value = "2 = Light"
+        .Range("O6").Value = "3 = Moderate"
+        .Range("O7").Value = "4 = Heavy"
+        
+        ' QA Notice
+        .Range("A11").Value = "SAMPLES HIGHLIGHTED IN GREEN WERE PULLED AND RERUN FOR QA"
+        .Range("A11").Font.Bold = True
+        .Range("A11").Interior.Color = RGB(144, 238, 144)
+        
+        ' Format header section
+        .Range("A1:A7").Font.Bold = True
+        .Range("F3:F9").Font.Bold = True
+        .Range("L3:O8").Font.Size = 9
+    End With
+    
+    ' ===== COPY POWER QUERY CLEANED DATA =====
+    lastRow = wsRaw.Cells(wsRaw.Rows.count, 1).End(xlUp).row
+    lastCol = wsRaw.Cells(1, wsRaw.Columns.count).End(xlToLeft).Column
+    
+    ' Copy the already cleaned data from Power Query
+    wsRaw.Range(wsRaw.Cells(1, 1), wsRaw.Cells(lastRow, lastCol)).Copy
+    wsFormatted.Range("A14").PasteSpecial xlPasteValues
+    Application.CutCopyMode = False
+    
+    ' ===== FORMAT HEADERS =====
+    With wsFormatted
+        ' Clear and create split headers (Power Query column names ? Publication format)
+        .Range(.Cells(13, 1), .Cells(14, lastCol)).Clear
+        
+        ' Row 13 (upper header)
+        .Cells(13, 5).Value = "Sample"
+        .Cells(13, 6).Value = "Water"
+        .Cells(13, 7).Value = "Oxygen"
+        .Cells(13, 8).Value = "D.O. # Drops/2"
+        .Cells(13, 9).Value = "D.O. Meter"
+        .Cells(13, 10).Value = "USE Salinity"
+        .Cells(13, 11).Value = "Secchi"
+        .Cells(13, 12).Value = "Total"
+        .Cells(13, 15).Value = "WIND"
+        .Cells(13, 16).Value = "WIND"
+        .Cells(13, 17).Value = "Water"
+        .Cells(13, 18).Value = "Sal"
+        .Cells(13, 19).Value = "Sal Bottle"
+        
+        ' Row 14 (lower header) - Publication format
+        .Cells(14, 1).Value = "Station"
+        .Cells(14, 2).Value = "Depth (m)"
+        .Cells(14, 3).Value = "QA/QC"
+        .Cells(14, 4).Value = "Date"
+        .Cells(14, 5).Value = "Time"
+        .Cells(14, 6).Value = "Temp (°c)"
+        .Cells(14, 7).Value = "(# drops)"
+        .Cells(14, 8).Value = "(mg/L)"
+        .Cells(14, 9).Value = "(mg/L)"
+        .Cells(14, 10).Value = "Corrected DO"
+        .Cells(14, 11).Value = "Depth (m)"
+        .Cells(14, 12).Value = "Total Depth (m)"
+        .Cells(14, 13).Value = "% Secchi"
+        .Cells(14, 14).Value = "WEATHER"
+        .Cells(14, 15).Value = "FORCE"
+        .Cells(14, 16).Value = "DIRECTION"
+        .Cells(14, 17).Value = "Condition"
+        .Cells(14, 18).Value = "Sal (ppt)"
+        .Cells(14, 19).Value = "Temp"
+        .Cells(14, 20).Value = "Conductivity"
+        
+        ' Add chemical parameters if they exist
+        If lastCol > 20 Then
+            .Cells(14, 21).Value = "PO4 (µM)"
+            .Cells(14, 22).Value = "NH4 (µM)"
+            .Cells(14, 23).Value = "NOX (µM)"
+            .Cells(14, 24).Value = "DIN (µM)"
+            .Cells(14, 25).Value = "DON (µM)"
+            .Cells(14, 26).Value = "TDN (µM)"
+            .Cells(14, 27).Value = "POC (µM)"
+            .Cells(14, 28).Value = "PON (µM)"
+            .Cells(14, 29).Value = "C/N Ratio"
+            .Cells(14, 30).Value = "TON (µM)"
+            .Cells(14, 31).Value = "TN (µM)"
+            .Cells(14, 32).Value = "CHL-a (µg/L)"
+            .Cells(14, 33).Value = "Phaeo (µg/L)"
+            .Cells(14, 34).Value = "Chla Ratio"
+            .Cells(14, 35).Value = "Total Pigments"
+            .Cells(14, 36).Value = "CL- (meq/L)"
+            .Cells(14, 37).Value = "Sigma t"
+            .Cells(14, 38).Value = "Notes"
+            .Cells(14, 39).Value = "Volunteers"
+        End If
+        
+        ' Format headers
+        .Range(.Cells(13, 1), .Cells(14, lastCol)).Font.Bold = True
+        .Range(.Cells(13, 1), .Cells(14, lastCol)).HorizontalAlignment = xlCenter
+        .Range(.Cells(13, 1), .Cells(14, lastCol)).Interior.Color = RGB(220, 220, 220)
+    End With
+    
+    ' ===== FORMAT DATA SECTION =====
+    Dim dataRange As Range
+    Set dataRange = wsFormatted.Range(wsFormatted.Cells(15, 1), wsFormatted.Cells(lastRow + 13, lastCol))
+    
+    With dataRange
+        .VerticalAlignment = xlCenter
+    End With
+    
+    With wsFormatted
+        ' Station names - left aligned
+        .Range(.Cells(15, 1), .Cells(lastRow + 13, 1)).HorizontalAlignment = xlLeft
+        
+        ' Numerical data - center aligned
+        .Range(.Cells(15, 2), .Cells(lastRow + 13, lastCol)).HorizontalAlignment = xlCenter
+        
+        ' Date column - date format
+        .Range(.Cells(15, 4), .Cells(lastRow + 13, 4)).NumberFormat = "mm/dd/yyyy"
+        
+        ' Time column - time format
+        .Range(.Cells(15, 5), .Cells(lastRow + 13, 5)).NumberFormat = "hh:mm"
+        
+        ' Temperature - decimal format
+        .Range(.Cells(15, 6), .Cells(lastRow + 13, 6)).NumberFormat = "0.0"
+        
+        ' Dissolved oxygen - decimal format (both columns)
+        .Range(.Cells(15, 8), .Cells(lastRow + 13, 9)).NumberFormat = "0.0"
+        
+        ' Corrected DO - decimal format
+        .Range(.Cells(15, 10), .Cells(lastRow + 13, 10)).NumberFormat = "0.0"
+        
+        ' Depth measurements - decimal format
+        .Range(.Cells(15, 11), .Cells(lastRow + 13, 12)).NumberFormat = "0.0"
+        
+        ' *** ADDED THIS BLOCK TO FORMAT THE % SECCHI COLUMN ***
+        ' % Secchi - format to 2 decimal places
+        .Range(.Cells(15, 13), .Cells(lastRow + 13, 13)).NumberFormat = "0.00"
+        
+        ' Salinity - decimal format
+        .Range(.Cells(15, 18), .Cells(lastRow + 13, 18)).NumberFormat = "0.0"
+        
+        ' Salinity bottle temp - decimal format
+        .Range(.Cells(15, 19), .Cells(lastRow + 13, 19)).NumberFormat = "0.0"
+        
+        ' Conductivity - decimal format
+        .Range(.Cells(15, 20), .Cells(lastRow + 13, 20)).NumberFormat = "0.0"
+        
+        ' Chemical parameters - 2 decimal places
+        If lastCol > 20 Then
+            .Range(.Cells(15, 21), .Cells(lastRow + 13, lastCol)).NumberFormat = "0.00"
+            ' C/N Ratio - 2 decimal places
+            .Range(.Cells(15, 29), .Cells(lastRow + 13, 29)).NumberFormat = "0.00"
+        End If
+    End With
+    
+    ' ===== DETECT OUTLIERS (Only on numeric columns) =====
+    Dim paramCols As Variant
+    paramCols = Array(6, 8, 9, 11, 12, 18) ' Temperature, DO1, DO2, Depths, Salinity
+    
+    For i = LBound(paramCols) To UBound(paramCols)
+        Dim col As Long
+        col = paramCols(i)
+        If col <= lastCol Then
+            ' Collect numeric values for statistical analysis
+            Dim values As Variant
+            ReDim values(1 To lastRow)
+            Dim count As Long: count = 0
+            Dim row As Long
+            Dim cellValue As Variant
+            
+            For row = 15 To lastRow + 13
+                cellValue = wsFormatted.Cells(row, col).Value
+                If IsNumeric(cellValue) And cellValue <> "" And cellValue <> "ND" And cellValue <> "NS" And cellValue <> "NA" And cellValue <> "BDL" And cellValue <> "NES" Then
+                    count = count + 1
+                    ReDim Preserve values(1 To count)
+                    values(count) = CDbl(cellValue)
+                End If
+            Next row
+            
+            ' Calculate mean and standard deviation if we have enough data
+            If count > 5 Then
+                Dim mean As Double, stdDev As Double, threshold As Double
+                mean = Application.WorksheetFunction.Average(values)
+                stdDev = Application.WorksheetFunction.StDev(values)
+                threshold = 2.5 ' 2.5 standard deviations
+                
+                ' Highlight outliers in RED
+                For row = 15 To lastRow + 13
+                    cellValue = wsFormatted.Cells(row, col).Value
+                    If IsNumeric(cellValue) And cellValue <> "" And cellValue <> "ND" And cellValue <> "NS" And cellValue <> "NA" And cellValue <> "BDL" And cellValue <> "NES" Then
+                        If Abs(CDbl(cellValue) - mean) > threshold * stdDev Then
+                            wsFormatted.Cells(row, col).Interior.Color = RGB(255, 100, 100) ' Light red
+                            wsFormatted.Cells(row, col).Font.Bold = True
+                            wsFormatted.Cells(row, col).Font.Color = RGB(139, 0, 0) ' Dark red text
+                        End If
+                    End If
+                Next row
+            End If
+        End If
+    Next i
+    
+    ' Highlight QA/QC rerun samples in green
+    For row = 15 To lastRow + 13
+        If wsFormatted.Cells(row, 3).Value <> "" Then ' QA/QC column has data
+            wsFormatted.Range(wsFormatted.Cells(row, 1), wsFormatted.Cells(row, lastCol)).Interior.Color = RGB(144, 238, 144)
+        End If
+    Next row
+    
+    ' ===== SET COLUMN WIDTHS =====
+    With wsFormatted
+        .Columns("A:A").ColumnWidth = 10     ' Station
+        .Columns("B:B").ColumnWidth = 8      ' Depth
+        .Columns("C:C").ColumnWidth = 8      ' QA/QC
+        .Columns("D:D").ColumnWidth = 12     ' Date
+        .Columns("E:E").ColumnWidth = 8      ' Time
+        .Columns("F:F").ColumnWidth = 8      ' Temperature
+        .Columns("G:G").ColumnWidth = 10     ' Oxygen drops
+        .Columns("H:I").ColumnWidth = 8      ' DO mg/L
+        .Columns("J:J").ColumnWidth = 12     ' Corrected DO
+        .Columns("K:L").ColumnWidth = 8      ' Depths
+        .Columns("M:M").ColumnWidth = 8      ' % Secchi
+        .Columns("N:N").ColumnWidth = 10     ' Weather
+        .Columns("O:P").ColumnWidth = 8      ' Wind
+        .Columns("Q:Q").ColumnWidth = 10     ' Water condition
+        .Columns("R:R").ColumnWidth = 8      ' Salinity
+        .Columns("S:T").ColumnWidth = 8      ' Sal temp, conductivity
+        
+        If lastCol > 20 Then
+            .Range(.Columns(21), .Columns(lastCol)).ColumnWidth = 9
+        End If
+        
+        ' Freeze panes and add autofilter
+        wsFormatted.Activate
+        .Range("A15").Select
+        ActiveWindow.FreezePanes = True
+        .Range("A14").AutoFilter
+        
+        ' Page setup
+        .PageSetup.Orientation = xlLandscape
+        .PageSetup.FitToPagesWide = 1
+        .PageSetup.FitToPagesTall = False
+        .PageSetup.PrintGridlines = False
+        
+        .Range("A1").Select
+    End With
+    
+    ' ===== CREATE ENHANCED CHARTS AND ANALYSIS =====
+    Call CreateMeaningfulWaterQualityCharts(wsFormatted, lastRow, lastCol)
+    
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    
+    MsgBox "Enhanced water quality report with advanced charts and analysis generated successfully!" & vbCrLf & _
+           "New sheet: " & wsFormatted.Name, vbInformation, "Enhanced Report Complete"
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    MsgBox "An error occurred: " & Err.description, vbCritical, "Error"
+End Sub
+
+'
+' --- CHART AND ANALYSIS SUBROUTINES ---
+' (The rest of your code remains unchanged below)
+'
+
+' ===== SIMPLIFIED CHART CREATION SUBROUTINES =====
+
+Sub CreateMeaningfulWaterQualityCharts(ws As Worksheet, lastRow As Long, lastCol As Long)
+    ' Create charts that reveal meaningful patterns in water quality data
+    
+    Dim chartStartRow As Long
+    chartStartRow = lastRow + 20
+    
+    ' Chart 1: Water Quality Health Dashboard - Row 1, Column 1
+    Call CreateWaterQualityHealthChart(ws, "Water Quality Health by Station", _
+                                      chartStartRow, 1, lastRow)
+    
+    ' Chart 2: Depth vs Temperature/DO - Row 1, Column 15 (far right)
+    Call CreateDepthProfileChart(ws, "Water Column Stratification Profile", _
+                                chartStartRow, 15, lastRow)
+    
+    ' Chart 3: Nutrient Loading Assessment - Row 2, Column 1 (below chart 1)
+    If lastCol > 25 Then
+        Call CreateNutrientLoadingChart(ws, "Nutrient Loading & Eutrophication Risk", _
+                                       chartStartRow + 25, 1, lastRow)
+    End If
+    
+    ' Chart 4: Productivity vs Clarity - Row 2, Column 15 (below chart 2)
+    If lastCol > 30 Then
+        Call CreateProductivityClarityChart(ws, "Ecosystem Health: Productivity vs Water Clarity", _
+                                           chartStartRow + 25, 15, lastRow)
+    End If
+    
+    ' Chart 5: Temporal trends - Row 3, Column 1 (below chart 3)
+    Call CreateSeasonalTrendsChart(ws, "Seasonal Water Quality Trends", _
+                                  chartStartRow + 50, 1, lastRow)
+    
+    ' Chart 6: Station comparison - Row 3, Column 15 (below chart 4)
+    Call CreateStationComparisonChart(ws, "Station Health Comparison", _
+                                     chartStartRow + 50, 15, lastRow)
+End Sub
+
+Sub CreateWaterQualityHealthChart(ws As Worksheet, title As String, startRow As Long, startCol As Long, lastRow As Long)
+    ' Shows which stations have optimal water quality conditions
+    On Error Resume Next ' Skip errors, don't create text boxes
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 450, 300)
+    
+    With chart.chart
+        .ChartType = xlColumnClustered
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' Temperature series
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Temperature (°C)"
+            .XValues = ws.Range("A15:A" & (lastRow + 13))
+            .values = ws.Range("F15:F" & (lastRow + 13))
+            .Format.Fill.ForeColor.RGB = RGB(255, 99, 71)
+        End With
+        
+        ' DO series
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(2)
+            .Name = "Dissolved Oxygen (mg/L)"
+            .XValues = ws.Range("A15:A" & (lastRow + 13))
+            .values = ws.Range("I15:I" & (lastRow + 13))
+            .Format.Fill.ForeColor.RGB = RGB(30, 144, 255)
+        End With
+        
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Parameter Values"
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Stations"
+        
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionTop
+    End With
+End Sub
+
+Sub CreateDepthProfileChart(ws As Worksheet, title As String, startRow As Long, startCol As Long, lastRow As Long)
+    ' Shows how temperature and oxygen change with depth
+    On Error Resume Next ' Skip errors, don't create text boxes
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 450, 300)
+    
+    With chart.chart
+        .ChartType = xlXYScatter
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' Temperature vs Depth
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Temperature Profile"
+            .XValues = ws.Range("F15:F" & (lastRow + 13))
+            .values = ws.Range("L15:L" & (lastRow + 13))
+            .MarkerStyle = xlMarkerStyleCircle
+            .MarkerSize = 8
+            .Format.MarkerForegroundColor.RGB = RGB(255, 69, 0)
+        End With
+        
+        ' DO vs Depth
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(2)
+            .Name = "Oxygen Profile"
+            .XValues = ws.Range("I15:I" & (lastRow + 13))
+            .values = ws.Range("L15:L" & (lastRow + 13))
+            .MarkerStyle = xlMarkerStyleSquare
+            .MarkerSize = 8
+            .Format.MarkerForegroundColor.RGB = RGB(0, 191, 255)
+        End With
+        
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Parameter Value"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Depth (m)"
+        .Axes(xlValue, xlPrimary).ReversePlotOrder = True
+        
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionRight
+    End With
+End Sub
+
+Sub CreateNutrientLoadingChart(ws As Worksheet, title As String, startRow As Long, startCol As Long, lastRow As Long)
+    ' Shows nitrogen loading
+    On Error Resume Next ' Skip errors, don't create text boxes
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 450, 300)
+    
+    With chart.chart
+        .ChartType = xlColumnStacked
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' DIN series
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "DIN - Available N"
+            .XValues = ws.Range("A15:A" & (lastRow + 13))
+            .values = ws.Range("X15:X" & (lastRow + 13))
+            .Format.Fill.ForeColor.RGB = RGB(220, 20, 60)
+        End With
+        
+        ' DON series
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(2)
+            .Name = "DON - Organic N"
+            .XValues = ws.Range("A15:A" & (lastRow + 13))
+            .values = ws.Range("Y15:Y" & (lastRow + 13))
+            .Format.Fill.ForeColor.RGB = RGB(255, 165, 0)
+        End With
+        
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Stations"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Nitrogen (µM)"
+        
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionTop
+    End With
+End Sub
+
+Sub CreateProductivityClarityChart(ws As Worksheet, title As String, startRow As Long, startCol As Long, lastRow As Long)
+    ' Chlorophyll vs clarity
+    On Error Resume Next ' Skip errors, don't create text boxes
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 450, 300)
+    
+    With chart.chart
+        .ChartType = xlXYScatter
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' Chlorophyll vs Secchi depth
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Ecosystem Health"
+            .XValues = ws.Range("K15:K" & (lastRow + 13))
+            .values = ws.Range("AF15:AF" & (lastRow + 13))
+            .MarkerStyle = xlMarkerStyleCircle
+            .MarkerSize = 10
+            .Format.MarkerForegroundColor.RGB = RGB(34, 139, 34)
+        End With
+        
+        .SeriesCollection(1).Trendlines.Add Type:=xlLinear
+        
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Water Clarity (m)"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Chlorophyll-a (µg/L)"
+        
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionBottom
+    End With
+End Sub
+
+Sub CreateSeasonalTrendsChart(ws As Worksheet, title As String, startRow As Long, startCol As Long, lastRow As Long)
+    ' Time series trends
+    On Error Resume Next ' Skip errors, don't create text boxes
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 450, 300)
+    
+    With chart.chart
+        .ChartType = xlLine
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' Temperature trend
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Temperature"
+            .XValues = ws.Range("D15:D" & (lastRow + 13))
+            .values = ws.Range("F15:F" & (lastRow + 13))
+            .Format.Line.ForeColor.RGB = RGB(255, 0, 0)
+            .Format.Line.Weight = 3
+        End With
+        
+        ' DO trend
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(2)
+            .Name = "Dissolved Oxygen"
+            .XValues = ws.Range("D15:D" & (lastRow + 13))
+            .values = ws.Range("I15:I" & (lastRow + 13))
+            .Format.Line.ForeColor.RGB = RGB(0, 0, 255)
+            .Format.Line.Weight = 3
+        End With
+        
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Date"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Values"
+        
+        .HasLegend = True
+        .Legend.Position = xlLegendPositionTop
+    End With
+End Sub
+
+Sub CreateStationComparisonChart(ws As Worksheet, title As String, startRow As Long, startCol As Long, lastRow As Long)
+    ' Station health comparison
+    On Error Resume Next ' Skip errors, don't create text boxes
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 450, 300)
+    
+    With chart.chart
+        .ChartType = xlColumnClustered
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' Salinity comparison
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = "Salinity (ppt)"
+            .XValues = ws.Range("A15:A" & (lastRow + 13))
+            .values = ws.Range("R15:R" & (lastRow + 13))
+            .Format.Fill.ForeColor.RGB = RGB(50, 205, 50)
+        End With
+        
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = "Stations"
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = "Salinity (ppt)"
+        
+        .HasLegend = False
+    End With
+End Sub
+
+Sub CreateTextBox(ws As Worksheet, startRow As Long, startCol As Long, title As String, description As String)
+    ' Fallback when chart creation fails
+    Dim textBox As Shape
+    Set textBox = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, _
+                                      ws.Cells(startRow, startCol).Left, _
+                                      ws.Cells(startRow, startCol).Top, 400, 100)
+    textBox.TextFrame.Characters.Text = "Chart: " & title & vbCrLf & description & vbCrLf & _
+                                       "Manual chart creation recommended for this data"
+    textBox.TextFrame.Characters.Font.Size = 10
+    textBox.Fill.ForeColor.RGB = RGB(255, 255, 200)
+End Sub
+
+Sub CreateBasicParameterChart(ws As Worksheet, title As String, xRange As String, yRange As String, _
+                             xTitle As String, yTitle As String, startRow As Long, startCol As Long)
+    ' Create a simple, robust chart that handles mixed data types
+    On Error GoTo ChartError
+    
+    Dim chart As ChartObject
+    Set chart = ws.ChartObjects.Add(ws.Cells(startRow, startCol).Left, _
+                                   ws.Cells(startRow, startCol).Top, 400, 250)
+    
+    ' First, clean the data by creating a helper range with only numeric values
+    Dim sourceRange As Range
+    Set sourceRange = ws.Range(yRange)
+    
+    With chart.chart
+        .ChartType = xlColumnClustered
+        .HasTitle = True
+        .ChartTitle.Text = title
+        .ChartTitle.Font.Size = 12
+        .ChartTitle.Font.Bold = True
+        
+        ' Clear any existing series
+        Do While .SeriesCollection.count > 0
+            .SeriesCollection(1).Delete
+        Loop
+        
+        ' Add series with error handling
+        .SeriesCollection.NewSeries
+        With .SeriesCollection(1)
+            .Name = yTitle
+            .XValues = ws.Range(xRange)
+            .values = ws.Range(yRange)
+            .Format.Fill.ForeColor.RGB = RGB(0, 112, 192)
+        End With
+        
+        ' Format axes
+        On Error Resume Next
+        .Axes(xlCategory, xlPrimary).HasTitle = True
+        .Axes(xlCategory, xlPrimary).AxisTitle.Text = xTitle
+        .Axes(xlValue, xlPrimary).HasTitle = True
+        .Axes(xlValue, xlPrimary).AxisTitle.Text = yTitle
+        On Error GoTo ChartError
+        
+        .HasLegend = False
+    End With
+    
+    Exit Sub
+    
+ChartError:
+    ' If chart creation fails, create a simple text box instead
+    Dim textBox As Shape
+    Set textBox = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, _
+                                      ws.Cells(startRow, startCol).Left, _
+                                      ws.Cells(startRow, startCol).Top, 400, 100)
+    textBox.TextFrame.Characters.Text = "Chart: " & title & vbCrLf & _
+                                       "Data contains mixed types - manual chart creation recommended"
+    textBox.TextFrame.Characters.Font.Size = 10
+    textBox.Fill.ForeColor.RGB = RGB(255, 255, 200)
+    Resume Next
+End Sub
+
+
+Sub CreateStationProfiles(ws As Worksheet, lastRow As Long, lastCol As Long)
+    ' Create individual station analysis profiles
+    Dim profileStartRow As Long
+    profileStartRow = lastRow + 95
+    
+    With ws
+        ' Title
+        .Cells(profileStartRow, 1).Value = "STATION-SPECIFIC ANALYSIS"
+        .Cells(profileStartRow, 1).Font.Bold = True
+        .Cells(profileStartRow, 1).Font.Size = 16
+        .Range(.Cells(profileStartRow, 1), .Cells(profileStartRow, 6)).Merge
+        .Cells(profileStartRow, 1).HorizontalAlignment = xlCenter
+        .Cells(profileStartRow, 1).Interior.Color = RGB(128, 0, 128)
+        .Cells(profileStartRow, 1).Font.Color = RGB(255, 255, 255)
+        
+        profileStartRow = profileStartRow + 2
+        
+        ' Headers for station analysis
+        .Cells(profileStartRow, 1).Value = "Station"
+        .Cells(profileStartRow, 2).Value = "Sample Count"
+        .Cells(profileStartRow, 3).Value = "Avg Temp (°C)"
+        .Cells(profileStartRow, 4).Value = "Avg DO (mg/L)"
+        .Cells(profileStartRow, 5).Value = "Avg Salinity"
+        .Cells(profileStartRow, 6).Value = "Water Quality Score"
+        .Cells(profileStartRow, 7).Value = "Ecosystem Status"
+        
+        .Range(.Cells(profileStartRow, 1), .Cells(profileStartRow, 7)).Font.Bold = True
+        .Range(.Cells(profileStartRow, 1), .Cells(profileStartRow, 7)).Interior.Color = RGB(220, 220, 220)
+        
+        ' This would require dynamic station identification and calculation
+        ' For now, create placeholder structure
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "=UNIQUE(A15:A" & (lastRow + 13) & ")"
+        .Cells(profileStartRow, 2).Value = "=COUNTIF(A15:A" & (lastRow + 13) & ",A" & profileStartRow & ")"
+        .Cells(profileStartRow, 3).Value = "=AVERAGEIF(A15:A" & (lastRow + 13) & ",A" & profileStartRow & ",F15:F" & (lastRow + 13) & ")"
+        .Cells(profileStartRow, 4).Value = "=AVERAGEIF(A15:A" & (lastRow + 13) & ",A" & profileStartRow & ",I15:I" & (lastRow + 13) & ")"
+        .Cells(profileStartRow, 5).Value = "=AVERAGEIF(A15:A" & (lastRow + 13) & ",A" & profileStartRow & ",R15:R" & (lastRow + 13) & ")"
+        .Cells(profileStartRow, 6).Formula = "=(D" & profileStartRow & "/15*30+F" & profileStartRow & "/30*20+IF(E" & profileStartRow & ">25,50,IF(E" & profileStartRow & ">15,30,10)))/100*100"
+        .Cells(profileStartRow, 7).Formula = "=IF(F" & profileStartRow & ">80,""Excellent"",IF(F" & profileStartRow & ">60,""Good"",IF(F" & profileStartRow & ">40,""Fair"",""Poor"")))"
+        
+        ' Format the station analysis
+        .Range(.Cells(profileStartRow, 3), .Cells(profileStartRow + 10, 6)).NumberFormat = "0.0"
+        
+        ' Add interpretation notes
+        profileStartRow = profileStartRow + 15
+        .Cells(profileStartRow, 1).Value = "INTERPRETATION GUIDELINES:"
+        .Cells(profileStartRow, 1).Font.Bold = True
+        .Cells(profileStartRow, 1).Font.Size = 12
+        
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "• Water Quality Score: Composite index based on DO, temperature, and salinity"
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "• Excellent (80-100): Optimal conditions for marine life"
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "• Good (60-79): Suitable conditions with minor stress indicators"
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "• Fair (40-59): Moderate stress, monitoring recommended"
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "• Poor (<40): Significant stress, immediate attention required"
+        profileStartRow = profileStartRow + 1
+        .Cells(profileStartRow, 1).Value = "• Red highlighted values indicate statistical outliers requiring investigation"
+    End With
+End Sub
+

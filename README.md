@@ -6,11 +6,8 @@ During my summer 2025 internship at SMAST's Estuary Lab, I successfully managed 
 
 Dashboards Designs: 
 
-https://github.com/user-attachments/assets/eb9b209f-63ac-4352-af7c-ca9736de39d5
-
-https://github.com/user-attachments/assets/9e06eeb9-e02f-48ce-a195-11538553bda6
-
-https://github.com/user-attachments/assets/b557bb23-e942-43af-8050-d0f51203f28d
-
 https://github.com/user-attachments/assets/d62653bc-20c7-4c5f-919d-da4b9af5188e
+https://github.com/user-attachments/assets/eb9b209f-63ac-4352-af7c-ca9736de39d5
+https://github.com/user-attachments/assets/9e06eeb9-e02f-48ce-a195-11538553bda6
+https://github.com/user-attachments/assets/b557bb23-e942-43af-8050-d0f51203f28d
 

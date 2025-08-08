@@ -1,0 +1,409 @@
+Sub DistributeDataToAllSheets()
+'
+' Master Data Distribution Macro - Run Directly (MAC COMPATIBLE)
+' Distributes ONLY valid data rows to Combined, Estuary, and Year sheets
+' Skips summary, analysis, and non-data content
+' Created for Coastal Systems Program - SMAST UMass Dartmouth
+
+    On Error GoTo ErrorHandler
+    
+    ' Confirm action
+    Dim response As VbMsgBoxResult
+    response = MsgBox("This will distribute ONLY data rows with valid station codes from the current sheet to:" & vbCrLf & _
+                     "• Merged Data sheet" & vbCrLf & _
+                     "• Appropriate estuary sheets" & vbCrLf & _
+                     "• Appropriate year sheet" & vbCrLf & vbCrLf & _
+                     "Summary/analysis content will be excluded." & vbCrLf & _
+                     "Continue?", vbYesNo + vbQuestion, "Distribute Data")
+    
+    If response = vbNo Then Exit Sub
+    
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    
+    Dim wsSource As Worksheet
+    Dim lastRow As Long, lastCol As Long
+    Dim dataRange As Range
+    Dim i As Long
+    
+    ' Set source worksheet
+    Set wsSource = ActiveSheet
+    
+    ' Get data range (starting from row 16, column D for dates)
+    lastRow = wsSource.Cells(wsSource.Rows.Count, 1).End(xlUp).Row
+    lastCol = wsSource.Cells(16, wsSource.Columns.Count).End(xlToLeft).Column
+    
+    If lastRow < 16 Then
+        MsgBox "No data found starting from row 16.", vbExclamation
+        GoTo Cleanup
+    End If
+    
+    ' Define data range (excluding headers)
+    Set dataRange = wsSource.Range(wsSource.Cells(16, 1), wsSource.Cells(lastRow, lastCol))
+    
+    ' Initialize station code arrays (Mac-compatible replacement for Dictionary)
+    Dim estuaryCodes As Variant
+    Dim estuaryNames As Variant
+    estuaryCodes = Array("BP", "GTP", "GP", "LP", "OP", "WF", "VS")
+    estuaryNames = Array("Bournes Pond", "Great Pond", "Green Pond", "Little Pond", "Oyster Pond", "West Falmouth Harbour", "Vineyard South")
+    
+    Dim distributionCount As Long
+    Dim skippedCount As Long
+    distributionCount = 0
+    skippedCount = 0
+    
+    ' Process each data row
+    For i = 1 To dataRange.Rows.Count
+        Dim currentRow As Range
+        Set currentRow = dataRange.Rows(i)
+        
+        Dim stationCode As String
+        Dim estuaryName As String
+        Dim currentYear As String
+        
+        ' Get station code from Column A
+        stationCode = Trim(UCase(currentRow.Cells(1, 1).Value))
+        
+        ' ENHANCED FILTERING: Only process rows with valid station codes AND data
+        estuaryName = GetEstuaryName(stationCode, estuaryCodes, estuaryNames)
+        
+        ' Skip completely empty rows first
+        If IsRowCompletelyEmpty(currentRow) Then
+            skippedCount = skippedCount + 1
+            Debug.Print "Skipped row " & (i + 15) & ": (Completely empty row)"
+            GoTo NextRow
+        End If
+        
+        ' Skip if no valid station code OR if row appears to be summary/analysis content
+        If estuaryName = "" Or stationCode = "" Or IsRowSummaryContent(currentRow) Then
+            skippedCount = skippedCount + 1
+            Debug.Print "Skipped row " & (i + 15) & ": " & stationCode & " (Invalid station or summary content)"
+            GoTo NextRow
+        End If
+        
+        ' Additional check: ensure row has actual measurement data (not just station code)
+        If Not HasMeasurementData(currentRow) Then
+            skippedCount = skippedCount + 1
+            Debug.Print "Skipped row " & (i + 15) & ": " & stationCode & " (No measurement data)"
+            GoTo NextRow
+        End If
+        
+        ' Diagnostic: Show what we're about to distribute
+        Debug.Print "Distributing row " & (i + 15) & ": " & stationCode & " -> " & estuaryName
+        Call DiagnoseRowData(currentRow, i + 15)
+        
+        ' Get current year (modify format as needed)
+        currentYear = "Data " & CStr(Year(Now()))  ' Results in "Data 2025"
+        ' Alternative formats:
+        ' currentYear = CStr(Year(Now())) & " Data"  ' Results in "2025 Data"
+        ' currentYear = Format(Now(), "yyyy")        ' Results in "2025" (original)
+        ' currentYear = "Year " & Format(Now(), "yyyy")  ' Results in "Year 2025"
+        
+        ' 1. Append to Merged Data sheet
+        Call AppendRowToSheet(currentRow, "Merged Data")
+        
+        ' 2. Append to appropriate estuary sheet
+        Call AppendRowToSheet(currentRow, estuaryName)
+        
+        ' 3. Append to current year sheet
+        Call AppendRowToSheet(currentRow, currentYear)
+        
+        distributionCount = distributionCount + 1
+        
+NextRow:
+    Next i
+    
+Cleanup:
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    
+    MsgBox "Data distribution completed successfully!" & vbCrLf & _
+           "Valid data rows processed: " & distributionCount & vbCrLf & _
+           "Rows skipped: " & skippedCount & vbCrLf & _
+           "Summary/analysis content excluded." & vbCrLf & _
+           "Data distributed to Combined, Estuary, and Year sheets." & vbCrLf & vbCrLf & _
+           "Check the Immediate Window (Ctrl+G) for detailed diagnostics.", _
+           vbInformation, "Distribution Complete"
+    
+    Exit Sub
+    
+ErrorHandler:
+    Application.ScreenUpdating = True
+    Application.Calculation = xlCalculationAutomatic
+    MsgBox "An error occurred during data distribution: " & Err.Description, vbCritical, "Error"
+End Sub
+
+Sub DiagnoseRowData(dataRow As Range, rowNumber As Long)
+'
+' Diagnostic function to show what data is being copied
+'
+    Dim i As Integer
+    Dim cellValue As Variant
+    Dim dataPreview As String
+    
+    dataPreview = "Row " & rowNumber & " data (" & dataRow.Columns.Count & " columns): "
+    
+    ' Show ALL columns of data to see everything being copied
+    For i = 1 To dataRow.Columns.Count
+        cellValue = dataRow.Cells(1, i).Value
+        
+        If IsDate(cellValue) Then
+            dataPreview = dataPreview & "[C" & i & "-DATE:" & Format(cellValue, "mm/dd/yyyy") & "] "
+        ElseIf IsNumeric(cellValue) And cellValue > 0 And cellValue < 1 And i = 5 Then
+            ' Only show as time if this is column 5 (actual time column)
+            dataPreview = dataPreview & "[C" & i & "-TIME:" & Format(cellValue, "h:mm AM/PM") & "] "
+        ElseIf IsNumeric(cellValue) Then
+            dataPreview = dataPreview & "[C" & i & "-NUM:" & cellValue & "] "
+        ElseIf cellValue = "" Then
+            dataPreview = dataPreview & "[C" & i & "-EMPTY] "
+        Else
+            dataPreview = dataPreview & "[C" & i & "-TEXT:" & Left(CStr(cellValue), 8) & "] "
+        End If
+        
+        ' Break line every 8 columns for readability
+        If i Mod 8 = 0 Then dataPreview = dataPreview & vbCrLf & "     "
+    Next i
+    
+    Debug.Print dataPreview
+End Sub
+
+Function GetEstuaryName(stationCode As String, codes As Variant, names As Variant) As String
+'
+' Determines estuary name from station code using prefix matching
+' Mac-compatible version using arrays instead of Dictionary
+'
+    Dim i As Integer
+    
+    ' Check each estuary code prefix
+    For i = LBound(codes) To UBound(codes)
+        If Left(stationCode, Len(codes(i))) = codes(i) Then
+            GetEstuaryName = names(i)
+            Exit Function
+        End If
+    Next i
+    
+    ' No match found
+    GetEstuaryName = ""
+End Function
+
+Function IsRowCompletelyEmpty(dataRow As Range) As Boolean
+'
+' Checks if a row is completely empty (all cells are empty)
+' Returns True if row should be excluded from distribution
+'
+    Dim i As Integer
+    Dim cellValue As Variant
+    
+    ' Check all cells in the row
+    For i = 1 To dataRow.Columns.Count
+        cellValue = dataRow.Cells(1, i).Value
+        
+        ' If any cell has content, row is not empty
+        If Not IsEmpty(cellValue) And Trim(CStr(cellValue)) <> "" Then
+            IsRowCompletelyEmpty = False
+            Exit Function
+        End If
+    Next i
+    
+    ' All cells were empty
+    IsRowCompletelyEmpty = True
+End Function
+
+Function IsRowSummaryContent(dataRow As Range) As Boolean
+'
+' Checks if a row contains summary/analysis content rather than measurement data
+' Returns True if row should be excluded from distribution
+'
+    Dim cellValue As String
+    Dim i As Integer
+    
+    ' Check first few columns for summary indicators
+    For i = 1 To Application.Min(5, dataRow.Columns.Count)
+        cellValue = Trim(UCase(CStr(dataRow.Cells(1, i).Value)))
+        
+        ' Look for common summary/analysis keywords
+        If InStr(cellValue, "AVERAGE") > 0 Or _
+           InStr(cellValue, "MEAN") > 0 Or _
+           InStr(cellValue, "MEDIAN") > 0 Or _
+           InStr(cellValue, "MIN") > 0 Or _
+           InStr(cellValue, "MAX") > 0 Or _
+           InStr(cellValue, "SUMMARY") > 0 Or _
+           InStr(cellValue, "TOTAL") > 0 Or _
+           InStr(cellValue, "COUNT") > 0 Or _
+           InStr(cellValue, "ANALYSIS") > 0 Or _
+           InStr(cellValue, "STDEV") > 0 Or _
+           InStr(cellValue, "STD DEV") > 0 Then
+            IsRowSummaryContent = True
+            Exit Function
+        End If
+    Next i
+    
+    IsRowSummaryContent = False
+End Function
+
+Function HasMeasurementData(dataRow As Range) As Boolean
+'
+' Checks if a row has actual measurement data beyond just a station code
+' Returns True if row contains numeric data or dates suggesting real measurements
+'
+    Dim i As Integer
+    Dim cellValue As Variant
+    Dim hasNumericData As Boolean
+    Dim hasDateData As Boolean
+    
+    hasNumericData = False
+    hasDateData = False
+    
+    ' Check columns beyond the first (station code) for actual data
+    For i = 2 To Application.Min(10, dataRow.Columns.Count)
+        cellValue = dataRow.Cells(1, i).Value
+        
+        ' Check for numeric measurement data
+        If IsNumeric(cellValue) And cellValue <> "" And cellValue <> 0 Then
+            hasNumericData = True
+        End If
+        
+        ' Check for date data
+        If IsDate(cellValue) Then
+            hasDateData = True
+        End If
+        
+        ' If we have both numeric and date data, this is likely a measurement row
+        If hasNumericData And hasDateData Then
+            HasMeasurementData = True
+            Exit Function
+        End If
+    Next i
+    
+    ' Require at least some numeric data for a valid measurement row
+    HasMeasurementData = hasNumericData
+End Function
+
+Sub AppendRowToSheet(dataRow As Range, sheetName As String)
+'
+' Appends a single row of data to the specified sheet with proper formatting preservation
+'
+    On Error GoTo SheetError
+    
+    Dim wsTarget As Worksheet
+    Dim wsSource As Worksheet
+    Dim targetLastRow As Long
+    Dim pastedRange As Range
+    Dim i As Long
+    
+    ' Get worksheets
+    Set wsSource = dataRow.Worksheet
+    Set wsTarget = Worksheets(sheetName)
+    
+    ' Find last row with data in target sheet
+    targetLastRow = wsTarget.Cells(wsTarget.Rows.Count, 1).End(xlUp).Row
+    
+    ' Copy cell by cell to preserve formatting and data types
+    For i = 1 To dataRow.Columns.Count
+        Dim sourceCell As Range
+        Dim targetCell As Range
+        Dim cellValue As Variant
+        
+        Set sourceCell = dataRow.Cells(1, i)
+        Set targetCell = wsTarget.Cells(targetLastRow + 1, i)
+        
+        cellValue = sourceCell.Value
+        
+        ' Handle different data types appropriately
+        If IsEmpty(cellValue) Then
+            ' Empty cell - just copy
+            targetCell.Value = ""
+        ElseIf IsDate(cellValue) Then
+            ' Date/Time data - preserve format and check for valid dates
+            If cellValue < DateSerial(1900, 1, 1) Then
+                ' Invalid date - skip or set to empty
+                targetCell.Value = ""
+            Else
+                targetCell.Value = cellValue
+                targetCell.NumberFormat = sourceCell.NumberFormat
+            End If
+        ElseIf IsNumeric(cellValue) And cellValue > 0 And cellValue < 1 And i = 5 Then
+            ' ONLY format as time if this is column 5 (Time column)
+            targetCell.Value = cellValue
+            If sourceCell.NumberFormat Like "*h:mm*" Or sourceCell.NumberFormat Like "*AM/PM*" Then
+                targetCell.NumberFormat = sourceCell.NumberFormat
+            Else
+                targetCell.NumberFormat = "h:mm AM/PM"  ' Default time format
+            End If
+        ElseIf IsNumeric(cellValue) Then
+            ' Regular numeric data - preserve original format exactly
+            targetCell.Value = cellValue
+            targetCell.NumberFormat = sourceCell.NumberFormat
+        Else
+            ' Text data
+            targetCell.Value = CStr(cellValue)
+            targetCell.NumberFormat = sourceCell.NumberFormat
+        End If
+        
+        ' Copy formatting
+        targetCell.HorizontalAlignment = xlCenter
+        targetCell.VerticalAlignment = xlCenter
+        
+        ' Preserve font and border formatting if needed
+        targetCell.Font.Name = sourceCell.Font.Name
+        targetCell.Font.Size = sourceCell.Font.Size
+        targetCell.Font.Bold = sourceCell.Font.Bold
+        
+    Next i
+    
+    Exit Sub
+    
+SheetError:
+    ' Sheet doesn't exist - create it or skip
+    If Err.Number = 9 Then ' Subscript out of range
+        Debug.Print "Sheet '" & sheetName & "' not found"
+        
+        ' Ask user if they want to create the missing sheet
+        Dim createSheet As VbMsgBoxResult
+        createSheet = MsgBox("Sheet '" & sheetName & "' does not exist." & vbCrLf & _
+                           "Would you like to create it?", vbYesNo + vbQuestion, "Create Missing Sheet")
+        
+        If createSheet = vbYes Then
+            ' Create the new sheet
+            Dim newSheet As Worksheet
+            Set newSheet = Worksheets.Add(After:=Worksheets(Worksheets.Count))
+            newSheet.Name = sheetName
+            
+            ' Copy headers from source sheet if available
+            Call CopyHeadersToNewSheet(dataRow.Worksheet, newSheet)
+            
+            ' Now try to append the data again
+            Resume
+        Else
+            Debug.Print "Skipping distribution to '" & sheetName & "'"
+        End If
+    Else
+        Debug.Print "Error appending to sheet '" & sheetName & "': " & Err.Description
+    End If
+End Sub
+
+Sub CopyHeadersToNewSheet(sourceSheet As Worksheet, targetSheet As Worksheet)
+'
+' Copies header rows to a newly created sheet
+'
+    On Error Resume Next
+    
+    ' Look for headers in rows 1-15 (before data starts at row 16)
+    Dim headerRange As Range
+    Dim lastHeaderCol As Long
+    
+    ' Find the last column with headers
+    lastHeaderCol = sourceSheet.Cells(15, sourceSheet.Columns.Count).End(xlToLeft).Column
+    
+    If lastHeaderCol > 1 Then
+        ' Copy header rows (assuming headers are in rows 1-15)
+        Set headerRange = sourceSheet.Range(sourceSheet.Cells(1, 1), sourceSheet.Cells(15, lastHeaderCol))
+        headerRange.Copy
+        targetSheet.Range("A1").PasteSpecial xlPasteAll
+        Application.CutCopyMode = False
+        
+        Debug.Print "Headers copied to new sheet: " & targetSheet.Name
+    End If
+    
+    On Error GoTo 0
+End Sub

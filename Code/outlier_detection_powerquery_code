@@ -1,0 +1,79 @@
+let
+Source = Excel.Workbook(File.Contents("Your New data file path"), null, true),
+#"Bournes Pond_Sheet" = Source{[Item="2026",Kind="Sheet"]}[Data], // instead of 2026, change it to the exact name of the new excel sheet that you are trying to select within the excel file.
+#"Promoted Headers" = Table.PromoteHeaders(#"Bournes Pond_Sheet", [PromoteAllScalars=true]),
+#"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Coastal Systems Group", type text}, {"Column2", type any}, {"Column3", type text}, {"Column4", type any}, {"Column5", type text}, {"Column6", type any}, {"Column7", type text}, {"Column8", type text}, {"Column9", type any}, {"Column10", type text}, {"Column11", type any}, {"Column12", type any}, {"Column13", type text}, {"Column14", type any}, {"Column15", type text}, {"Column16", type text}, {"Column17", type text}, {"Column18", type any}, {"Column19", type text}, {"Column20", type text}, {"Column21", type any}, {"Column22", type any}, {"Column23", type any}, {"Column24", type any}, {"Column25", type any}, {"Column26", type any}, {"Column27", type any}, {"Column28", type any}, {"Column29", type any}, {"Column30", type any}, {"Column31", type any}, {"Column32", type text}, {"Column33", type text}, {"Column34", type text}, {"Column35", type text}, {"Column36", type any}, {"Column37", type any}, {"Column38", type text}, {"Column39", type text}}),
+#"Removed Top Rows" = Table.Skip(#"Changed Type",13),
+#"Renamed Columns" = Table.RenameColumns(#"Removed Top Rows",{{"Coastal Systems Group", "station"}, {"Column2", "depth"}, {"Column4", "date"}, {"Column6", "temperature"}, {"Column7", "oxygen_#_drops"}, {"Column8", "do_drops/2"}, {"Column9", "do_meter"}, {"Column10", "use_salinity_corrected_do"}, {"Column11", "secchi_depth"}, {"Column12", "total_depth"}, {"Column18", "salinity"}, {"Column20", "conductivity"}, {"Column21", "po4"}, {"Column22", "nh4"}, {"Column23", "nox"}, {"Column24", "din"}, {"Column25", "don"}, {"Column26", "tdn"}, {"Column27", "poc"}, {"Column28", "pon"}, {"Column29", "cn_ratio"}, {"Column30", "ton"}, {"Column31", "tn"}, {"Column32", "chla"}, {"Column33", "phaeo"}, {"Column34", "chla_phaeo_ratio"}, {"Column35", "total_pigments"}}),
+#"Removed Columns" = Table.RemoveColumns(#"Renamed Columns",{"Column3", "Column5", "Column13", "Column14", "Column15", "Column16", "Column17", "Column19", "Column36", "Column37", "Column38", "Column39"}),
+
+// Universal, case-insensitive, and error-proof cleaning function
+fnCleanValue = (inputValue) =>
+let
+// First, handle non-text values by returning them as-is
+cleanedValue = if not (inputValue is text) then inputValue else
+let
+// Trim whitespace and create a lowercase version for comparison
+lowercaseValue = Text.Lower(Text.Trim(inputValue))
+in
+// Apply rules for known text codes
+if lowercaseValue = "<1" then 0.5
+else if lowercaseValue = "<2" then 1.0
+else if lowercaseValue = "<0.01" then 0.005
+else if lowercaseValue = "<0.05" then 0.025
+else if lowercaseValue = "<0.1" then 0.05
+else if List.Contains({"nd", "n/a", "machine error", "missing", "bdl", "bld", "ns?", "tbd", "no color", "lost disc", ""}, lowercaseValue) or lowercaseValue = null then null
+// If no rule matches, return the original trimmed value for the next step
+else Text.Trim(inputValue),
+
+// Final error-handling step: try converting to a number, otherwise return null
+finalResult = try Number.From(cleanedValue) otherwise null
+in
+finalResult,
+
+#"Clean All Text Values" = Table.TransformColumns(#"Removed Columns", {
+{"temperature", each fnCleanValue(_), type any},
+{"oxygen_#_drops", each fnCleanValue(_), type any},
+{"do_drops/2", each fnCleanValue(_), type any},
+{"do_meter", each fnCleanValue(_), type any},
+{"use_salinity_corrected_do", each fnCleanValue(_), type any},
+{"secchi_depth", each fnCleanValue(_), type any},
+{"total_depth", each fnCleanValue(_), type any},
+{"salinity", each fnCleanValue(_), type any},
+{"conductivity", each fnCleanValue(_), type any},
+{"po4", each fnCleanValue(_), type any},
+{"nh4", each fnCleanValue(_), type any},
+{"nox", each fnCleanValue(_), type any},
+{"din", each fnCleanValue(_), type any},
+{"don", each fnCleanValue(_), type any},
+{"tdn", each fnCleanValue(_), type any},
+{"poc", each fnCleanValue(_), type any},
+{"pon", each fnCleanValue(_), type any},
+{"cn_ratio", each fnCleanValue(_), type any},
+{"ton", each fnCleanValue(_), type any},
+{"tn", each fnCleanValue(_), type any},
+{"chla", each fnCleanValue(_), type any},
+{"phaeo", each fnCleanValue(_), type any},
+{"chla_phaeo_ratio", each fnCleanValue(_), type any},
+{"total_pigments", each fnCleanValue(_), type any}
+}),
+
+// This step is now mostly for catching potential errors in non-numeric columns, but good practice to keep.
+#"Replaced Errors" = Table.ReplaceErrorValues(#"Clean All Text Values", {{"station", ""}, {"depth", ""}, {"date", ""}, {"temperature", null}, {"oxygen_#_drops", null}, {"do_drops/2", null}, {"do_meter", null}, {"use_salinity_corrected_do", null}, {"secchi_depth", null}, {"total_depth", null}, {"salinity", null}, {"conductivity", null}, {"po4", null}, {"nh4", null}, {"nox", null}, {"din", null}, {"don", null}, {"tdn", null}, {"poc", null}, {"pon", null}, {"cn_ratio", null}, {"ton", null}, {"tn", null}, {"chla", null}, {"phaeo", null}, {"chla_phaeo_ratio", null}, {"total_pigments", null}}),
+
+#"Changed Type1" = Table.TransformColumnTypes(#"Replaced Errors",{{"temperature", type number}, {"oxygen_#_drops", type number}, {"do_drops/2", type number}, {"do_meter", type number}, {"use_salinity_corrected_do", type number}, {"secchi_depth", type number}, {"total_depth", type number}, {"salinity", type number}, {"conductivity", type number}, {"po4", type number}, {"nh4", type number}, {"nox", type number}, {"din", type number}, {"don", type number}, {"tdn", type number}, {"poc", type number}, {"pon", type number}, {"cn_ratio", type number}, {"ton", type number}, {"tn", type number}, {"chla", type number}, {"phaeo", type number}, {"chla_phaeo_ratio", type number}, {"total_pigments", type number}, {"date", type date}}),
+
+enhanced_depth = Table.AddColumn(#"Changed Type1", "enhanced_depth", each
+if [depth] = "S" then 0
+else if [depth] = "B" then [total_depth]
+else try Number.From([depth]) otherwise null
+),
+
+#"Added Year" = Table.AddColumn(enhanced_depth, "Year", each Date.Year([date]), Int64.Type),
+
+#"Reordered Columns" = Table.ReorderColumns(#"Added Year",{"station", "depth", "enhanced_depth", "Year", "date", "temperature", "oxygen_#_drops", "do_drops/2", "do_meter", "use_salinity_corrected_do", "secchi_depth", "total_depth", "salinity", "conductivity", "po4", "nh4", "nox", "din", "don", "tdn", "poc", "pon", "cn_ratio", "ton", "tn", "chla", "phaeo", "chla_phaeo_ratio", "total_pigments"}),
+#"Removed Columns1" = Table.RemoveColumns(#"Reordered Columns",{"depth"}),
+#"Renamed Columns1" = Table.RenameColumns(#"Removed Columns1",{{"enhanced_depth", "depth"}}),
+#"Removed Blank Rows" = Table.SelectRows(#"Renamed Columns1", each not List.IsEmpty(List.RemoveMatchingItems(Record.FieldValues(_), {"", null})))
+in
+#"Removed Blank Rows"
